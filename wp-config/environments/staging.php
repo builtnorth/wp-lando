@@ -6,6 +6,8 @@
 
 use BuiltNorth\WPConfig\Config;
 
+use function Env\env;
+
 /**
  * You should try to keep staging as close to production as possible. However,
  * should you need to, you can always override production configuration values

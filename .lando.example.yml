@@ -2,7 +2,7 @@ name: project-name # Name must be unique for each app!
 recipe: wordpress
 
 config:
-    webroot: wp
+    webroot: .
     php: "8.2"
     via: nginx # nginx / apache
     database: mysql # mysql / mariadb

@@ -13,6 +13,13 @@ use BuiltNorth\WPConfig\Config;
 
 use function Env\env;
 
+use Dotenv\Dotenv;
+
+/**
+ * Environment Variable Handling
+ */
+Env\Env::$options = 31; // USE_ENV_ARRAY + CONVERT_* + STRIP_QUOTES
+
 /**
  * Directory Setup
  */
@@ -32,13 +39,13 @@ if (file_exists($root_dir . '/.env')) {
 		? ['.env', '.env.local']
 		: ['.env'];
 
-	$dotenv = Dotenv\Dotenv::createImmutable($root_dir, $env_files, false);
+	$dotenv = Dotenv::createImmutable($root_dir, $env_files, false);
 	$dotenv->load();
 
 	// Required variables
-	Config::requireVars(['WP_HOME', 'WP_ENV']);
+	$dotenv->required(['WP_HOME', 'WP_ENV']);
 	if (!env('DATABASE_URL')) {
-		Config::requireVars(['DB_NAME', 'DB_USER', 'DB_PASSWORD']);
+		$dotenv->required(['DB_NAME', 'DB_USER', 'DB_PASSWORD']);
 	}
 }
 
@@ -63,10 +70,6 @@ Config::define('WP_CONTENT_URL', Config::get('WP_HOME') . Config::get('CONTENT_D
 /**
  * DB settings
  */
-if (env('DB_SSL')) {
-	Config::define('MYSQL_CLIENT_FLAGS', MYSQLI_CLIENT_SSL);
-}
-
 if (env('DATABASE_URL')) {
 	$dsn = (object) parse_url(env('DATABASE_URL'));
 	Config::define('DB_NAME', substr($dsn->path, 1));
@@ -123,7 +126,7 @@ Config::define('WP_MEMORY_LIMIT', env('WP_MEMORY_LIMIT') ?: '256M');
  */
 Config::define('WP_DEBUG', false);
 Config::define('WP_DEBUG_DISPLAY', false);
-Config::define('WP_DEBUG_LOG', env('WP_DEBUG_LOG') ?: false);
+Config::define('WP_DEBUG_LOG', false);
 Config::define('SCRIPT_DEBUG', false);
 ini_set('display_errors', '0');
 
@@ -135,11 +138,6 @@ if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROT
 }
 
 /**
- * Apply Configurations
- */
-Config::apply();
-
-/**
  * Load Environment Config
  */
 $env_config = __DIR__ . '/environments/' . Config::get('WP_ENV') . '.php';
@@ -149,8 +147,20 @@ if (file_exists($env_config)) {
 }
 
 /**
+ * Apply Configurations
+ */
+Config::apply();
+
+/**
  * Bootstrap WordPress
  */
 if (!defined('ABSPATH')) {
-	define('ABSPATH', $webroot_dir . '/wp');
+	define('ABSPATH', $webroot_dir . '/');
+}
+
+/**
+ * WP Environment Type
+ */
+if (!env('WP_ENVIRONMENT_TYPE') && in_array(Config::get('WP_ENV'), ['production', 'staging', 'development', 'local'])) {
+	Config::define('WP_ENVIRONMENT_TYPE', Config::get('WP_ENV'));
 }

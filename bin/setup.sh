@@ -101,7 +101,7 @@ fi
 
 # Display WordPress login info
 echo -e "\n${GREEN}WordPress login info:${NC}"
-echo "URL: https://$sitename.lndo.site/wp-admin"
+echo "URL: https://$sitename.lndo.site/wp/wp-admin"
 echo "Username: $username"
 echo "Password: $password"
 echo "Email: $email"
