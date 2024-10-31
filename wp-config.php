@@ -18,7 +18,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 /** ---------------------------------------------------------------------------
  * Configuration
  * --------------------------------------------------------------------------- */
-require_once dirname(__DIR__) . '/wp-config/application.php';
+require_once __DIR__ . '/wp-config/application.php';
 
 /** ---------------------------------------------------------------------------
  * WordPress Settings

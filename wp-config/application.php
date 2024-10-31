@@ -11,6 +11,8 @@
 
 use BuiltNorth\WPConfig\Config;
 
+use function Env\env;
+
 /**
  * Directory Setup
  */
@@ -133,22 +135,22 @@ if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROT
 }
 
 /**
+ * Apply Configurations
+ */
+Config::apply();
+
+/**
  * Load Environment Config
  */
-$env_config = __DIR__ . '/environments/' . WP_ENV . '.php';
+$env_config = __DIR__ . '/environments/' . Config::get('WP_ENV') . '.php';
 
 if (file_exists($env_config)) {
 	require_once $env_config;
 }
 
 /**
- * Apply Configurations
- */
-Config::apply();
-
-/**
  * Bootstrap WordPress
  */
 if (!defined('ABSPATH')) {
-	define('ABSPATH', $webroot_dir . '/');
+	define('ABSPATH', $webroot_dir . '/wp');
 }
