@@ -1,0 +1,69 @@
+{
+	"name": "builtnorth/wp-lando",
+	"description": "Starting point for WordPress projects using Lando",
+	"type": "project",
+	"authors": [
+		{
+			"name": "Built North",
+			"email": "hello@builtnorth.co"
+		},
+		{
+			"name": "Dan Northern",
+			"email": "contact@dannorthern.com"
+		}
+	],
+	"repositories": [
+		{
+			"type": "composer",
+			"url": "https://wpackagist.org"
+		},
+		{
+			"type": "path",
+			"url": "wp-content/plugins/*"
+		},
+		{
+			"type": "path",
+			"url": "wp-content/themes/*"
+		},
+		{
+			"type": "vcs",
+			"url": "git@github.com:builtnorth/wp-config.git"
+		}
+	],
+	"require": {
+		"composer/installers": "~1.0 || ~2.0",
+		"php": ">=8.0",
+		"vlucas/phpdotenv": "^5.6",
+		"roots/wordpress": "*",
+		"roots/wp-password-bcrypt": "^1.1",
+		"wpackagist-plugin/wordpress-importer": "dev-trunk",
+		"builtnorth/wp-config": "dev-main"
+	},
+	"config": {
+		"optimize-autoloader": true,
+		"allow-plugins": {
+			"roots/wordpress-core-installer": true,
+			"composer/installers": true,
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		}
+	},
+	"minimum-stability": "dev",
+	"prefer-stable": true,
+	"extra": {
+		"installer-paths": {
+			"wp-content/mu-plugins/{$name}/": [
+				"type:wordpress-muplugin"
+			],
+			"wp-content/plugins/{$name}/": [
+				"type:wordpress-plugin"
+			],
+			"wp-content/themes/{$name}/": [
+				"type:wordpress-theme"
+			]
+		},
+		"wordpress-install-dir": "wp"
+	},
+	"require-dev": {
+		"wp-coding-standards/wpcs": "^3.0"
+	}
+}

@@ -1,0 +1,94 @@
+# Environment and Configuration
+.env
+.env.shared
+.env.lando
+.lando.yml
+
+# Dependencies
+/vendor
+node_modules
+bower_components
+
+# WordPress Directories
+/wordpress
+/app
+/wp
+
+# Build and Compilation
+.sass-cache
+dist
+backstop_data
+_srcMaps/
+build
+
+# WordPress Core
+/wordpress/wp-admin/
+/wordpress/wp-includes/
+/wordpress/wp-*.php
+/xmlrpc.php
+/license.txt
+/readme.html
+
+# WordPress Content
+wp-content/*
+!wp-content/mu-plugins/
+!wp-content/themes/
+!wp-content/plugins/
+
+# Plugins (Allow only custom plugins)
+wp-content/plugins/*
+!wp-content/plugins/built*
+!wp-content/plugins/compass*
+!wp-content/plugins/polaris*
+!wp-content/plugins/site-core
+
+# Default Themes
+wp-content/themes/twenty*
+
+# Uploads and Generated Content
+wp-content/uploads/sites/*/gravity_forms
+wp-content/uploads/sites/*/wp-migrate-db
+wp-content/uploads/wpo-plugins-tables-list.json
+
+# htaccess
+.htaccess
+/wp-content/.htaccess
+
+# Logs and Backups
+*.log
+*.sql
+*.sql.gz
+db_backup.*
+/imagify-backup
+
+# Allow seeder db
+!db-seeder-export.sql
+
+# Editor and IDE Files
+*.esproj
+*.tmproj
+*.tmproject
+tmtags
+.*.sw[a-z]
+*.un~
+Session.vim
+*.swp
+.vscode
+*.code-workspace
+
+# OS Generated Files
+## Mac
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+## Windows
+Thumbs.db
+Desktop.ini
+
+# Miscellaneous
+.ftppass
+sftpCache.json
+bin/tasks
+debug.log

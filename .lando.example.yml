@@ -1,0 +1,47 @@
+name: project-name # Name must be unique for each app!
+recipe: wordpress
+
+config:
+    webroot: .
+    php: "8.2"
+    via: nginx # nginx / apache
+    database: mysql # mysql / mariadb
+    xdebug: false # true or false (false to start, as it slows things down
+    composer: true
+    env_file:
+        - .env
+    # config:
+    #     php: config/php.ini
+
+services:
+    pma:
+        type: phpmyadmin
+        hosts:
+            - database
+    mailhog:
+        type: mailhog
+        hogfrom:
+            - appserver
+
+proxy:
+    mailhog:
+        - mail.project-name.lndo.site
+    pma:
+        - pma.project-name.lndo.site
+
+tooling:
+    wp:
+        service: appserver
+        cmd: wp
+    npm:
+        service: appserver
+        cmd: npm
+    composer:
+        service: appserver
+        cmd: composer
+
+events:
+    pre-stop:
+        - echo "Backing up database..."
+        - lando wp db export - | gzip > db_backup.sql.gz
+        - echo "Database successfully backed up"
