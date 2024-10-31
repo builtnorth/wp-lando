@@ -85,17 +85,18 @@ if ! lando composer install; then
 fi
 
 
-# Download WordPress core
-# echo "Downloading WordPress core..."
-# if ! lando wp core download; then
-#     echo -e "${RED}Failed to download WordPress core${NC}"
-#     exit 1
-# fi
 
 # Install WordPress
 echo "Installing WordPress..."
 if ! lando wp core install --url="https://$sitename.lndo.site" --title="$sitename_original" --admin_user="$username" --admin_password="$password" --admin_email="$email"; then
     echo -e "${RED}Failed to install WordPress${NC}"
+    exit 1
+fi
+
+# Install Twenty Twenty Four theme
+echo "Installing default theme..."
+if ! lando wp theme install twentytwentyfour; then
+    echo -e "${RED}Failed to install default theme${NC}"
     exit 1
 fi
 
