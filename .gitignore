@@ -10,6 +10,9 @@ node_modules
 bower_components
 composer.lock
 
+# Data from import/export scripts
+/data
+
 # WordPress Directories
 /wordpress
 /app
