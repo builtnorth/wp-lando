@@ -10,12 +10,22 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Create temporary export directory
-TEMP_EXPORT_DIR="/tmp/wp-export-$(date +%Y%m%d-%H%M%S)"
+TEMP_EXPORT_DIR="data/tmp/wp-export-$(date +%Y%m%d-%H%M%S)"
 ARCHIVE_NAME="wp-export-$(date +%Y%m%d-%H%M%S).tar.gz"
 
 # Create temporary export directory structure
 create_temp_dirs() {
-    # echo -e "\n${GREEN}Creating temporary export directory...${NC}"
+    echo -e "\n${GREEN}Creating directories...${NC}"
+    # Create data directory structure
+    mkdir -p "${DATA_DIR}"
+    mkdir -p "${IMPORT_DIR}"
+    mkdir -p "${EXPORT_DIR}"
+    mkdir -p "${DB_IMPORT_DIR}"
+    mkdir -p "${DB_EXPORT_DIR}"
+    mkdir -p "${CONTENT_IMPORT_DIR}"
+    mkdir -p "${CONTENT_EXPORT_DIR}"
+    
+    # Create temp directory
     mkdir -p "${TEMP_EXPORT_DIR}"
 }
 
@@ -32,21 +42,27 @@ check_wordpress_root() {
 export_database() {
     echo -e "\n${GREEN}Exporting database...${NC}"
     
+    # Get database name from WordPress config
+    DB_NAME=$(lando wp config get DB_NAME)
+    
+    # Export using Lando's configured database connection
+    local TEMP_SQL="${TEMP_EXPORT_DIR}/database.sql"
+    
     # Source PII sanitization functions
     source "$(dirname "$0")/sanitize-db.sh"
     
-    # Offer to sanitize PII
-    sanitize_database
+    # Offer to sanitize PII during export
+    sanitize_database "${TEMP_SQL}" "${DB_NAME}"
     
-    # Export using Lando's configured database connection
-    lando wp db export - | gzip > "${TEMP_EXPORT_DIR}/database.sql.gz"
+    # Compress the sanitized file
+    gzip "${TEMP_SQL}"
     
     if [ $? -eq 0 ]; then
-        DB_SIZE=$(du -sh "${TEMP_EXPORT_DIR}/database.sql.gz" | cut -f1)
+        DB_SIZE=$(du -sh "${TEMP_SQL}.gz" | cut -f1)
         echo -e "${GREEN}✓${NC} Database exported successfully (${DB_SIZE})"
         
         # Check if the exported file is too small
-        if [ $(stat -f%z "${TEMP_EXPORT_DIR}/database.sql.gz") -lt 1000 ]; then
+        if [ $(stat -f%z "${TEMP_SQL}.gz") -lt 1000 ]; then
             echo -e "${YELLOW}Warning: Database export seems very small. Might be empty.${NC}"
         fi
     else
