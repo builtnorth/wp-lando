@@ -1,22 +1,21 @@
 #!/bin/bash
 
-# Colors for output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# Source common paths and colors
+source "$(dirname "$0")/helpers/variables.sh"
+source "$(dirname "$0")/helpers/colors.sh"
 
-# Get current datetime for folder names
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-TEMP_DIR="data/tmp/export-${TIMESTAMP}"
-EXPORT_FILE="data/export-${TIMESTAMP}.tar.gz"
+# Source the .env file
+if [ -f .env ]; then
+    export $(cat .env | grep -v '#' | awk '/=/ {print $1}')
+    echo "DEBUG - Table prefix from .env: ${DB_PREFIX}"
+else
+    echo "Error: .env file not found"
+    exit 1
+fi
 
 # Create directories
 mkdir -p "${TEMP_DIR}"
 mkdir -p "$(dirname "${EXPORT_FILE}")"
-
-
-# Get table prefix
-DB_PREFIX=$(lando wp config get table_prefix --quiet)
 
 # Ask about PII data
 echo -e "\n${YELLOW}Would you like to remove PII?${NC}"
@@ -51,40 +50,69 @@ if [[ "${REMOVE_PII}" =~ ^[Yy]$ ]]; then
         "${DB_PREFIX}wc_order_coupon_lookup"
         "${DB_PREFIX}wc_download_log"
         "${DB_PREFIX}wc_webhooks"
-        
-        # Form Submissions
+        "${DB_PREFIX}woocommerce_sessions"
+        "${DB_PREFIX}woocommerce_api_keys"
+        "${DB_PREFIX}woocommerce_order_items"
+        "${DB_PREFIX}woocommerce_order_itemmeta"
+
+		# Polaris Forms
         "${DB_PREFIX}pf_submit"
         "${DB_PREFIX}pf_submit_meta"
+        
+        # Gravity Forms
         "${DB_PREFIX}gf_entry"
         "${DB_PREFIX}gf_entry_meta"
         "${DB_PREFIX}gf_entry_notes"
+        "${DB_PREFIX}gf_form_revisions"
+        "${DB_PREFIX}gf_form_view"
+
+		# WPForms
+        "${DB_PREFIX}wpforms_entries"
+        "${DB_PREFIX}wpforms_entry_fields"
+        "${DB_PREFIX}wpforms_entry_meta"
+        "${DB_PREFIX}wpforms_tasks_meta"
+        "${DB_PREFIX}wpforms_payment_meta"
+
+		# Flamingo
+        "${DB_PREFIX}flamingo_contact"
+        "${DB_PREFIX}flamingo_inbound"
+        "${DB_PREFIX}flamingo_outbound"
         
         # Logs and Sessions
         "${DB_PREFIX}actionscheduler_actions"
+        "${DB_PREFIX}actionscheduler_claims"
+        "${DB_PREFIX}actionscheduler_groups"
         "${DB_PREFIX}actionscheduler_logs"
-        "${DB_PREFIX}woocommerce_sessions"
-        "${DB_PREFIX}woocommerce_api_keys"
+        
+        # Yoast SEO
+        "${DB_PREFIX}yoast_indexable"
+        "${DB_PREFIX}yoast_indexable_hierarchy"
+        "${DB_PREFIX}yoast_migrations"
+        "${DB_PREFIX}yoast_seo_links"
+        "${DB_PREFIX}yoast_seo_meta"
+        
+        # Amazon/eBay Integration (if used)
+        "${DB_PREFIX}amazon_feeds"
+        "${DB_PREFIX}amazon_jobs"
+        "${DB_PREFIX}amazon_log"
+        "${DB_PREFIX}amazon_orders"
+        "${DB_PREFIX}amazon_reports"
+        "${DB_PREFIX}amazon_stock_log"
+        "${DB_PREFIX}ebay_jobs"
+        "${DB_PREFIX}ebay_log"
+        "${DB_PREFIX}ebay_messages"
+        "${DB_PREFIX}ebay_orders"
+        "${DB_PREFIX}ebay_stocks_log"
+        "${DB_PREFIX}ebay_transactions"
     )
 
     # Convert array to comma-separated list
     EXCLUDE_TABLES=$(IFS=,; echo "${TABLES_TO_EXCLUDE[*]}")
+    
+    # echo "DEBUG - Full exclude string: ${EXCLUDE_TABLES}"
 
-    # Export structure without data for excluded tables
-    lando wp db export "${TEMP_DIR}/structure.sql" \
-        --tables=$(echo "$EXCLUDE_TABLES" | tr ',' ' ') \
-        --no-data \
-        --quiet >/dev/null 2>&1
-
-    # Then export data from safe tables (excluding sensitive ones)
-    lando wp db export "${TEMP_DIR}/data.sql" \
-        --exclude_tables=${EXCLUDE_TABLES} \
-        --where="post_type NOT IN ('shop_order','shop_subscription','revision','wpcf7_contact_form')" \
-        --quiet >/dev/null 2>&1
-
-    # Combine files
-    cat "${TEMP_DIR}/structure.sql" > "${TEMP_DIR}/database.sql"
-    cat "${TEMP_DIR}/data.sql" >> "${TEMP_DIR}/database.sql"
-    rm "${TEMP_DIR}/structure.sql" "${TEMP_DIR}/data.sql"
+    # Export database
+    lando wp db export "${TEMP_DIR}/database.sql" --exclude_tables="${EXCLUDE_TABLES}" --quiet
 
     # Add admin user
     cat >> "${TEMP_DIR}/database.sql" << EOF
@@ -95,7 +123,7 @@ INSERT INTO \`${DB_PREFIX}usermeta\` VALUES (2,1,'${DB_PREFIX}user_level','10');
 EOF
 else
     # Export entire database
-    lando wp db export "${TEMP_DIR}/database.sql" --quiet >/dev/null 2>&1
+    lando wp db export "${TEMP_DIR}/database.sql" --quiet
 fi
 
 # Export wp-content

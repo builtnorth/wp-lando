@@ -1,10 +1,7 @@
 #!/bin/bash
 
-# Colors
-TEAL='\033[0;36m'
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+# Source colors
+source "$(dirname "$0")/helpers/colors.sh"
 
 # ASCII art and welcome message
 echo -e "${TEAL}
