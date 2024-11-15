@@ -1,115 +1,119 @@
 #!/bin/bash
 
-# Source common paths
-source "$(dirname "$0")/common-paths.sh"
-
 # Colors for output
-RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Create temporary export directory
-TEMP_EXPORT_DIR="data/tmp/wp-export-$(date +%Y%m%d-%H%M%S)"
-ARCHIVE_NAME="wp-export-$(date +%Y%m%d-%H%M%S).tar.gz"
+# Get current datetime for folder names
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+TEMP_DIR="data/tmp/export-${TIMESTAMP}"
+EXPORT_FILE="data/export-${TIMESTAMP}.tar.gz"
 
-# Create temporary export directory structure
-create_temp_dirs() {
-    echo -e "\n${GREEN}Creating directories...${NC}"
-    # Create data directory structure
-    mkdir -p "${DATA_DIR}"
-    mkdir -p "${IMPORT_DIR}"
-    mkdir -p "${EXPORT_DIR}"
-    mkdir -p "${DB_IMPORT_DIR}"
-    mkdir -p "${DB_EXPORT_DIR}"
-    mkdir -p "${CONTENT_IMPORT_DIR}"
-    mkdir -p "${CONTENT_EXPORT_DIR}"
-    
-    # Create temp directory
-    mkdir -p "${TEMP_EXPORT_DIR}"
-}
+# Create directories
+mkdir -p "${TEMP_DIR}"
+mkdir -p "$(dirname "${EXPORT_FILE}")"
 
-# Check if we're in the right directory
-check_wordpress_root() {
-    if [ ! -f "wp-config.php" ]; then
-        echo -e "${RED}Error: wp-config.php not found${NC}"
-        echo -e "Please run this script from the WordPress root directory"
-        exit 1
-    fi
-}
 
-# Export database
-export_database() {
-    echo -e "\n${GREEN}Exporting database...${NC}"
+# Get table prefix
+DB_PREFIX=$(lando wp config get table_prefix --quiet)
+
+# Ask about PII data
+echo -e "\n${YELLOW}Would you like to remove PII?${NC}"
+echo -e "This includes: users, comments, orders, form submissions, etc."
+echo -e "A new admin user will be created with the details you provide.\n"
+read -p "Remove PII? (y/n): " REMOVE_PII
+
+if [[ "${REMOVE_PII}" =~ ^[Yy]$ ]]; then
+    # Get admin user details
+    echo -e "\n${GREEN}Enter details for the admin user:${NC}"
+    read -p "Username (default: admin): " ADMIN_USER
+    read -p "Email (default: admin@example.com): " ADMIN_EMAIL
+    read -p "Password (default: admin): " ADMIN_PASS
     
-    # Get database name from WordPress config
-    DB_NAME=$(lando wp config get DB_NAME)
-    
-    # Export using Lando's configured database connection
-    local TEMP_SQL="${TEMP_EXPORT_DIR}/database.sql"
-    
-    # Source PII sanitization functions
-    source "$(dirname "$0")/sanitize-db.sh"
-    
-    # Offer to sanitize PII during export
-    sanitize_database "${TEMP_SQL}" "${DB_NAME}"
-    
-    # Compress the sanitized file
-    gzip "${TEMP_SQL}"
-    
-    if [ $? -eq 0 ]; then
-        DB_SIZE=$(du -sh "${TEMP_SQL}.gz" | cut -f1)
-        echo -e "${GREEN}✓${NC} Database exported successfully (${DB_SIZE})"
+    # Set defaults if empty
+    ADMIN_USER=${ADMIN_USER:-admin}
+    ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
+    ADMIN_PASS=${ADMIN_PASS:-admin}
+
+    # List of tables to exclude
+    declare -a TABLES_TO_EXCLUDE=(
+        "${DB_PREFIX}users"
+        "${DB_PREFIX}usermeta"
+        "${DB_PREFIX}comments"
+        "${DB_PREFIX}commentmeta"
         
-        # Check if the exported file is too small
-        if [ $(stat -f%z "${TEMP_SQL}.gz") -lt 1000 ]; then
-            echo -e "${YELLOW}Warning: Database export seems very small. Might be empty.${NC}"
-        fi
-    else
-        echo -e "${RED}✗${NC} Database export failed"
-        exit 1
-    fi
-}
+        # WooCommerce
+        "${DB_PREFIX}wc_customer_lookup"
+        "${DB_PREFIX}wc_order_stats"
+        "${DB_PREFIX}wc_order_product_lookup"
+        "${DB_PREFIX}wc_order_tax_lookup"
+        "${DB_PREFIX}wc_order_coupon_lookup"
+        "${DB_PREFIX}wc_download_log"
+        "${DB_PREFIX}wc_webhooks"
+        
+        # Form Submissions
+        "${DB_PREFIX}pf_submit"
+        "${DB_PREFIX}pf_submit_meta"
+        "${DB_PREFIX}gf_entry"
+        "${DB_PREFIX}gf_entry_meta"
+        "${DB_PREFIX}gf_entry_notes"
+        
+        # Logs and Sessions
+        "${DB_PREFIX}actionscheduler_actions"
+        "${DB_PREFIX}actionscheduler_logs"
+        "${DB_PREFIX}woocommerce_sessions"
+        "${DB_PREFIX}woocommerce_api_keys"
+    )
 
-# Export content
-export_content() {
-    echo -e "\n${GREEN}Exporting wp-content...${NC}"
-    rsync -aq --delete --exclude 'upgrade' "wp-content/" "${TEMP_EXPORT_DIR}/wp-content/"
-    CONTENT_SIZE=$(du -sh "${TEMP_EXPORT_DIR}/wp-content" | cut -f1)
-    echo -e "${GREEN}✓${NC} Content exported successfully (${CONTENT_SIZE})"
-}
+    # Convert array to comma-separated list
+    EXCLUDE_TABLES=$(IFS=,; echo "${TABLES_TO_EXCLUDE[*]}")
 
-# Create archive
-create_archive() {
-    # Ensure data directory exists
-    DATA_DIR="data"
-    if [ ! -d "${DATA_DIR}" ]; then
-        echo -e "\n${GREEN}Creating data directory...${NC}"
-        mkdir -p "${DATA_DIR}"
-    fi
+    # Export structure without data for excluded tables
+    lando wp db export "${TEMP_DIR}/structure.sql" \
+        --tables=$(echo "$EXCLUDE_TABLES" | tr ',' ' ') \
+        --no-data \
+        --quiet >/dev/null 2>&1
 
-    echo -e "\n${GREEN}Creating archive...${NC}"
-    FULL_PATH="${DATA_DIR}/${ARCHIVE_NAME}"
-    tar -czf "${FULL_PATH}" -C "${TEMP_EXPORT_DIR}" .
-    
-    if [ $? -eq 0 ]; then
-        ARCHIVE_SIZE=$(du -sh "${FULL_PATH}" | cut -f1)
-        echo -e "${GREEN}✓${NC} Archive created successfully:"
-        echo -e "Location: ${FULL_PATH}"
-        echo -e "Size: ${ARCHIVE_SIZE}"
-    else
-        echo -e "${RED}✗${NC} Archive creation failed"
-        exit 1
-    fi
-}
+    # Then export data from safe tables (excluding sensitive ones)
+    lando wp db export "${TEMP_DIR}/data.sql" \
+        --exclude_tables=${EXCLUDE_TABLES} \
+        --where="post_type NOT IN ('shop_order','shop_subscription','revision','wpcf7_contact_form')" \
+        --quiet >/dev/null 2>&1
 
-# Main execution
-echo -e "${GREEN}Starting export process...${NC}"
+    # Combine files
+    cat "${TEMP_DIR}/structure.sql" > "${TEMP_DIR}/database.sql"
+    cat "${TEMP_DIR}/data.sql" >> "${TEMP_DIR}/database.sql"
+    rm "${TEMP_DIR}/structure.sql" "${TEMP_DIR}/data.sql"
 
-check_wordpress_root
-create_temp_dirs
-export_database
-export_content
-create_archive
+    # Add admin user
+    cat >> "${TEMP_DIR}/database.sql" << EOF
+-- Add admin user
+INSERT INTO \`${DB_PREFIX}users\` VALUES (1,'${ADMIN_USER}',MD5('${ADMIN_PASS}'),'${ADMIN_USER}','${ADMIN_EMAIL}','','2024-01-01 00:00:00','',0,'Admin');
+INSERT INTO \`${DB_PREFIX}usermeta\` VALUES (1,1,'${DB_PREFIX}capabilities','a:1:{s:13:\"administrator\";b:1;}');
+INSERT INTO \`${DB_PREFIX}usermeta\` VALUES (2,1,'${DB_PREFIX}user_level','10');
+EOF
+else
+    # Export entire database
+    lando wp db export "${TEMP_DIR}/database.sql" --quiet >/dev/null 2>&1
+fi
+
+# Export wp-content
+rsync -aq --delete --exclude 'upgrade' "wp-content/" "${TEMP_DIR}/wp-content/"
+
+# Create final archive
+tar -czf "${EXPORT_FILE}" -C "${TEMP_DIR}" .
+rm -rf "$(dirname "${TEMP_DIR}")"
 
 echo -e "\n${GREEN}Export complete!${NC}"
+echo -e "Location: ${EXPORT_FILE}"
+echo -e "Size: $(du -h "${EXPORT_FILE}" | cut -f1)"
+
+# Cleanup function for interrupts
+cleanup() {
+    echo -e "\n${YELLOW}Cleaning up...${NC}"
+    rm -rf "$(dirname "${TEMP_DIR}")"
+    exit 1
+}
+
+trap cleanup INT TERM
