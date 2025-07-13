@@ -1,6 +1,6 @@
 <?php
 /**
- * Simple bootstrap command to set up a BuiltNorth project
+ * Simple basecamp command to set up a BuiltNorth project
  */
 
 if (!class_exists('WP_CLI')) {
@@ -8,9 +8,9 @@ if (!class_exists('WP_CLI')) {
 }
 
 /**
- * Simple Bootstrap Command
+ * Simple Basecamp Command
  */
-class Bootstrap_Command {
+class Basecamp_Command {
     
     /**
      * Bootstrap a new project
@@ -31,7 +31,7 @@ class Bootstrap_Command {
      * 
      * ## EXAMPLES
      * 
-     *     wp bootstrap --name="My Project" --email="admin@example.com" --password="secure123"
+     *     wp basecamp --name="My Project" --email="admin@example.com" --password="secure123"
      * 
      * @when before_wp_load
      */
@@ -325,7 +325,7 @@ class Bootstrap_Command {
     }
 }
 
-// Register the bootstrap command
+// Register the basecamp command
 if (class_exists('WP_CLI')) {
-    WP_CLI::add_command('bootstrap', 'Bootstrap_Command');
+    WP_CLI::add_command('basecamp', 'Basecamp_Command');
 }

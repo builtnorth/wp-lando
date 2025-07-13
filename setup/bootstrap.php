@@ -334,7 +334,7 @@ function run_wordpress_setup($name, $email, $password, $username) {
     echo "\nRunning WordPress setup...\n";
     
     $cmd = sprintf(
-        'lando wp bootstrap --name="%s" --email="%s" --password="%s" --username="%s" 2>&1',
+        'lando wp basecamp --name="%s" --email="%s" --password="%s" --username="%s" 2>&1',
         addslashes($name),
         addslashes($email),
         addslashes($password),
