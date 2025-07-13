@@ -225,8 +225,8 @@ function start_lando() {
         }
     }
     
-    // Start Lando - show all output
-    passthru('lando start', $return_code);
+    // Start Lando - show all output but skip URL scanning
+    passthru('lando start --no-scanner', $return_code);
     
     if ($return_code !== 0) {
         error_exit("Failed to start Lando. Please check the error messages above.");
