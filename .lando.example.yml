@@ -1,4 +1,4 @@
-name: project-name # Name must be unique for each app!
+name: project-name
 recipe: wordpress
 
 config:
@@ -6,7 +6,7 @@ config:
     php: "8.2"
     via: nginx # nginx / apache
     database: mysql # mysql / mariadb
-    xdebug: false # true or false (false to start, as it slows things down
+    xdebug: true
     composer: true
     env_file:
         - .env
@@ -14,6 +14,8 @@ config:
     #     php: config/php.ini
 
 services:
+    node:
+        type: node:22
     pma:
         type: phpmyadmin
         hosts:
@@ -34,8 +36,11 @@ tooling:
         service: appserver
         cmd: wp
     npm:
-        service: appserver
+        service: node
         cmd: npm
+    node:
+        service: node
+        cmd: node
     composer:
         service: appserver
         cmd: composer

@@ -4,6 +4,10 @@
 .env.lando
 .lando.yml
 
+#ai tools
+.claude
+.claude/
+
 # Dependencies
 /vendor
 node_modules

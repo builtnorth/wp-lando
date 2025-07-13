@@ -50,9 +50,17 @@ if (file_exists($root_dir . '/.env')) {
 }
 
 /**
- * Environment Type
+ * Set up our global environment constant and load its config first
+ * Default: production
  */
 Config::define('WP_ENV', env('WP_ENV') ?: 'production');
+
+/**
+ * Infer WP_ENVIRONMENT_TYPE based on WP_ENV
+ */
+if (!env('WP_ENVIRONMENT_TYPE') && in_array(Config::get('WP_ENV'), ['production', 'staging', 'development', 'local'])) {
+	Config::define('WP_ENVIRONMENT_TYPE', Config::get('WP_ENV'));
+}
 
 /**
  * URLs
@@ -106,8 +114,8 @@ Config::define('AUTOMATIC_UPDATER_DISABLED', true);
 Config::define('DISABLE_WP_CRON', env('DISABLE_WP_CRON') ?: false);
 Config::define('DISALLOW_FILE_EDIT', true);
 Config::define('DISALLOW_FILE_MODS', true);
-Config::define('WP_POST_REVISIONS', env('WP_POST_REVISIONS') ?? 5);
-Config::define('EMPTY_TRASH_DAYS', env('EMPTY_TRASH_DAYS') ?? 30);
+Config::define('WP_POST_REVISIONS', env('WP_POST_REVISIONS') ?? 20);
+Config::define('EMPTY_TRASH_DAYS', env('EMPTY_TRASH_DAYS') ?? 90);
 
 /**
  * Security Settings
@@ -154,13 +162,13 @@ Config::apply();
 /**
  * Bootstrap WordPress
  */
-if (!defined('ABSPATH')) {
-	define('ABSPATH', $webroot_dir . '/');
+if (!defined('ABSPATH') && !defined('WP_CLI')) {
+	define('ABSPATH', $webroot_dir . '/wp/');
 }
 
+
 /**
- * WP Environment Type
+ * Auth K
  */
-if (!env('WP_ENVIRONMENT_TYPE') && in_array(Config::get('WP_ENV'), ['production', 'staging', 'development', 'local'])) {
-	Config::define('WP_ENVIRONMENT_TYPE', Config::get('WP_ENV'));
-}
+Config::define('SAMPLE_API', env('SAMPLE_API'));
+Config::define('JWT_AUTH_SECRET_KEY', env('JWT_AUTH_SECRET_KEY'));	

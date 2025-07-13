@@ -1,5 +1,0 @@
-# Global parameter defaults
-path: wp
-# disabled_commands:
-# - db drop
-# - plugin install

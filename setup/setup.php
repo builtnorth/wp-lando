@@ -1,0 +1,331 @@
+<?php
+/**
+ * Simple bootstrap command to set up a BuiltNorth project
+ */
+
+if (!class_exists('WP_CLI')) {
+    return;
+}
+
+/**
+ * Simple Bootstrap Command
+ */
+class Bootstrap_Command {
+    
+    /**
+     * Bootstrap a new project
+     * 
+     * ## OPTIONS
+     * 
+     * [--name=<name>]
+     * : Project name (required)
+     * 
+     * [--username=<username>]
+     * : WordPress admin username (default: admin)
+     * 
+     * [--password=<password>]
+     * : WordPress admin password (required)
+     * 
+     * [--email=<email>]
+     * : WordPress admin email (required)
+     * 
+     * ## EXAMPLES
+     * 
+     *     wp bootstrap --name="My Project" --email="admin@example.com" --password="secure123"
+     * 
+     * @when before_wp_load
+     */
+    public function __invoke($args, $assoc_args) {
+        WP_CLI::line('WordPress Setup');
+        WP_CLI::line('===============');
+        WP_CLI::line('');
+        
+        // Get values from args (these should be passed from bootstrap.php)
+        $name = $assoc_args['name'] ?? WP_CLI::error('Missing --name parameter');
+        $username = $assoc_args['username'] ?? 'admin';
+        $email = $assoc_args['email'] ?? WP_CLI::error('Missing --email parameter');
+        $password = $assoc_args['password'] ?? WP_CLI::error('Missing --password parameter');
+        
+        // Sanitize project name
+        $sitename = strtolower(str_replace(' ', '-', $name));
+        $url = "https://{$sitename}.lndo.site";
+        
+        // Step 1: Install WordPress
+        WP_CLI::line('Installing WordPress...');
+        
+        // First ensure WordPress core files exist
+        if (!file_exists('wp/index.php')) {
+            WP_CLI::error('WordPress core files not found. Please ensure composer install has run successfully.');
+        }
+        
+        $this->wait_for_db();
+        
+        // Check if WordPress is already installed
+        exec('wp core is-installed 2>&1', $output, $return_code);
+        if ($return_code === 0) {
+            WP_CLI::warning('WordPress appears to be already installed. Resetting database...');
+            exec('wp db reset --yes 2>&1', $reset_output, $reset_return);
+            if ($reset_return !== 0) {
+                WP_CLI::error('Failed to reset database: ' . implode(' ', $reset_output));
+            }
+        } else {
+            // WordPress not installed, ensure database exists
+            WP_CLI::line('Ensuring database exists...');
+            exec('wp db create 2>&1', $db_output, $db_return);
+            if ($db_return === 0) {
+                WP_CLI::success('Database created successfully');
+            } else {
+                // Check if it's just because database already exists
+                exec('wp db check 2>&1', $check_output, $check_return);
+                if ($check_return === 0) {
+                    WP_CLI::line('Database already exists and is accessible');
+                } else {
+                    WP_CLI::error('Database issue: ' . implode(' ', $db_output));
+                }
+            }
+        }
+        
+        $install_cmd = sprintf(
+            'wp core install --url="%s" --title="%s" --admin_user="%s" --admin_password="%s" --admin_email="%s" --skip-email',
+            $url,
+            $name,
+            $username,
+            $password,
+            $email
+        );
+        
+        WP_CLI::line("Running: $install_cmd");
+        
+        // Use passthru to see real-time output
+        passthru($install_cmd, $return_code);
+        
+        if ($return_code !== 0) {
+            WP_CLI::error('WordPress installation failed. Please check the configuration.');
+        }
+        
+        // Verify installation
+        WP_CLI::line('Verifying installation...');
+        exec('wp core is-installed 2>&1', $installed_check, $installed_return);
+        if ($installed_return === 0) {
+            WP_CLI::success('WordPress is installed');
+            
+            // Get key options
+            exec('wp option get siteurl 2>&1', $siteurl_output);
+            exec('wp option get home 2>&1', $home_output);
+            exec('wp db prefix 2>&1', $prefix_output);
+            
+            WP_CLI::line('Site URL: ' . implode('', $siteurl_output));
+            WP_CLI::line('Home URL: ' . implode('', $home_output));
+            WP_CLI::line('Table prefix: ' . implode('', $prefix_output));
+            WP_CLI::line('Expected URL: ' . $url);
+        } else {
+            WP_CLI::error('WordPress installation verification failed: ' . implode(' ', $installed_check));
+        }
+        
+        // Step 2: Configure WordPress
+        WP_CLI::line('Configuring WordPress...');
+        
+        // Try to install a default theme (required for roots/wordpress-no-content)
+        WP_CLI::line('Installing default theme...');
+        $themes_to_try = ['twentytwentyfive', 'twentytwentyfour', 'twentytwentythree'];
+        $theme_installed = false;
+        
+        foreach ($themes_to_try as $theme) {
+            exec("wp theme install $theme --activate 2>&1", $theme_output, $theme_return);
+            if ($theme_return === 0) {
+                WP_CLI::success("Theme $theme installed and activated");
+                $theme_installed = true;
+                break;
+            }
+        }
+        
+        if (!$theme_installed) {
+            WP_CLI::warning('Could not install any default theme. You may need to install one manually.');
+        }
+        
+        // Activate plugins
+        exec('wp plugin list --format=count 2>&1', $plugin_count, $plugin_return);
+        if ($plugin_return === 0 && intval($plugin_count[0] ?? 0) > 0) {
+            WP_CLI::line('Activating plugins...');
+            exec('wp plugin activate --all 2>&1', $activate_output, $activate_return);
+            if ($activate_return !== 0) {
+                WP_CLI::warning('Some plugins may not have activated: ' . implode(' ', $activate_output));
+            }
+        } else {
+            WP_CLI::line('No plugins to activate');
+        }
+        
+        // Configure settings
+        WP_CLI::line('Configuring settings...');
+        exec('wp option update timezone_string "America/New_York" 2>&1', $tz_output, $tz_return);
+        if ($tz_return !== 0) {
+            WP_CLI::warning('Failed to set timezone: ' . implode(' ', $tz_output));
+        }
+        
+        exec('wp option update uploads_use_yearmonth_folders "0" 2>&1', $upload_output, $upload_return);
+        if ($upload_return !== 0) {
+            WP_CLI::warning('Failed to set upload settings: ' . implode(' ', $upload_output));
+        }
+        
+        exec('wp rewrite structure "/%postname%/" 2>&1', $rewrite_output, $rewrite_return);
+        if ($rewrite_return !== 0) {
+            WP_CLI::warning('Failed to set rewrite structure: ' . implode(' ', $rewrite_output));
+        }
+        
+        exec('wp rewrite flush 2>&1', $flush_output, $flush_return);
+        if ($flush_return !== 0) {
+            WP_CLI::warning('Failed to flush rewrites: ' . implode(' ', $flush_output));
+        }
+        
+        
+        // Import media
+        $media_files = [
+            dirname(__DIR__) . '/setup/data/images/logo.png',
+            dirname(__DIR__) . '/setup/data/images/icon.png',
+            dirname(__DIR__) . '/setup/data/images/placeholder-image-canyon.jpg'
+        ];
+        
+        $logo_id = null;
+        $icon_id = null;
+        
+        foreach ($media_files as $file) {
+            if (file_exists($file)) {
+                // Clear output array before each import
+                $media_output = [];
+                exec("wp media import $file --porcelain 2>&1", $media_output, $media_return);
+                if ($media_return !== 0) {
+                    WP_CLI::warning('Failed to import media ' . basename($file) . ': ' . implode(' ', $media_output));
+                } else {
+                    $attachment_id = trim($media_output[0]);
+                    $filename = basename($file);
+                    
+                    // Track logo and icon IDs
+                    if ($filename === 'logo.png') {
+                        $logo_id = $attachment_id;
+                        WP_CLI::success("Imported logo.png (ID: {$logo_id})");
+                    } elseif ($filename === 'icon.png') {
+                        $icon_id = $attachment_id;
+                        WP_CLI::success("Imported icon.png (ID: {$icon_id})");
+                    } else {
+                        WP_CLI::success("Imported {$filename} (ID: {$attachment_id})");
+                    }
+                }
+            }
+        }
+        
+        // Set site logo and icon
+        if ($logo_id || $icon_id) {
+            WP_CLI::line('Setting site logo and icon...');
+            
+            // Get current theme
+            exec('wp option get stylesheet 2>&1', $theme_output, $theme_return);
+            $current_theme = ($theme_return === 0) ? trim($theme_output[0]) : 'twentytwentyfive';
+            
+            if ($logo_id) {
+                // Set site logo - this is stored in the site_logo option
+                exec("wp option update site_logo {$logo_id} 2>&1", $logo_output, $logo_return);
+                if ($logo_return === 0) {
+                    WP_CLI::success('Set site logo');
+                } else {
+                    WP_CLI::warning('Failed to set site logo: ' . implode(' ', $logo_output));
+                }
+            }
+            
+            if ($icon_id) {
+                // Set site icon (favicon)
+                exec("wp option update site_icon {$icon_id} 2>&1", $icon_output, $icon_return);
+                if ($icon_return === 0) {
+                    WP_CLI::success('Set site icon');
+                } else {
+                    WP_CLI::warning('Failed to set site icon: ' . implode(' ', $icon_output));
+                }
+            }
+        }
+        
+        
+        // Setup home and blog pages
+        WP_CLI::line('Setting up pages...');
+        exec('wp post list --post_type=page --name=home --format=ids 2>&1', $home_ids, $home_return);
+        exec('wp post list --post_type=page --name=blog --format=ids 2>&1', $blog_ids, $blog_return);
+        
+        $home_id = !empty($home_ids[0]) ? trim($home_ids[0]) : null;
+        $blog_id = !empty($blog_ids[0]) ? trim($blog_ids[0]) : null;
+        
+        if ($home_id && $blog_id) {
+            exec("wp option update page_for_posts {$blog_id} 2>&1", $posts_output, $posts_return);
+            exec("wp option update page_on_front {$home_id} 2>&1", $front_output, $front_return);
+            exec("wp option update show_on_front page 2>&1", $show_output, $show_return);
+            exec("wp post update {$home_id} --menu_order=-99 2>&1", $order_output, $order_return);
+            
+            if ($posts_return === 0 && $front_return === 0 && $show_return === 0) {
+                WP_CLI::success("Set home page (ID: {$home_id}) and blog page (ID: {$blog_id})");
+            } else {
+                WP_CLI::warning('Some page settings may not have been applied correctly');
+            }
+        } else {
+            WP_CLI::warning('Could not find home and/or blog pages to set');
+        }
+        
+        // Success!
+        WP_CLI::line('');
+        WP_CLI::success('Bootstrap complete!');
+        WP_CLI::line('');
+        
+        // Final verification
+        exec('wp core is-installed 2>&1', $final_check, $final_return);
+        if ($final_return === 0) {
+            WP_CLI::success('WordPress installation verified!');
+            WP_CLI::line('');
+            WP_CLI::line("Frontend: {$url}");
+            WP_CLI::line("Admin: {$url}/wp/wp-admin");
+            WP_CLI::line("Username: {$username}");
+            WP_CLI::line("Password: {$password}");
+        } else {
+            WP_CLI::warning('WordPress may not be properly installed. Please check your site.');
+            WP_CLI::line("Try visiting: {$url}");
+        }
+    }
+    
+    /**
+     * Wait for database to be ready
+     */
+    private function wait_for_db() {
+        $max_attempts = 60; // Increased to 60 attempts (2 minutes total)
+        $attempt = 0;
+        
+        WP_CLI::line('Waiting for database to be ready...');
+        
+        while ($attempt < $max_attempts) {
+            // Clear previous output
+            $output = [];
+            
+            // For initial setup, just check if we can connect to MySQL
+            exec('wp db query "SELECT 1" 2>&1', $output, $return_code);
+            
+            if ($return_code === 0) {
+                WP_CLI::success('Database is ready');
+                return;
+            }
+            
+            $attempt++;
+            
+            // Show progress
+            if ($attempt === 1) {
+                WP_CLI::line("Database service is starting up...");
+            } elseif ($attempt % 10 === 0) {
+                WP_CLI::line("Still waiting... (attempt {$attempt}/{$max_attempts})");
+            }
+            
+            if ($attempt >= $max_attempts) {
+                WP_CLI::error('Database connection timeout after 2 minutes. Please check your configuration.');
+            }
+            
+            sleep(2); // Check every 2 seconds
+        }
+    }
+}
+
+// Register the bootstrap command
+if (class_exists('WP_CLI')) {
+    WP_CLI::add_command('bootstrap', 'Bootstrap_Command');
+}
