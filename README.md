@@ -1,18 +1,18 @@
-# WordPress Lando Dev Setup (WP Bascamp)
+# WordPress Lando Dev Setup (WP Basecamp)
 
 Quick development environment setup for WordPress using Lando with sensible defaults.
 
 ## Features
 
 - Containerized development with Lando & Docker
-- Secure configuration with environment variables.
-- Environment-specific configuration files.
-- omposer-based WordPress management
+- Secure configuration with environment variables
+- Environment-specific configuration files
+- Composer-based WordPress management
 - Modern tools (WP-CLI, PHP 8.2, Nginx)
 - MailHog for email testing
-- PHPMyAdmin for database management
+- phpMyAdmin for database management
 - Auto database backups on shutdown
-- Bare-bones starter FSE starter theme installation ([Compass](https://github.com/builtnorth/compass.git))
+- Media import with automatic site logo/icon configuration
 
 ### Prerequisites
 
@@ -57,42 +57,116 @@ After setup completes, you'll have:
 - Automatic database backups on `lando stop`
 
 
-## Structure
+## Project Structure (After Setup)
 
 ```
-wp-lando/
-├── wp/                  # WordPress core
-├── wp-content/          # Themes, plugins, uploads
-├── wp-config/           # WP configuration (production, staging, development)
-├── setup/                # Bootstrap and setup
-├── .env                # Environment variables
-└── .lando.yml          # Lando config
+project-name/
+├── setup/               # Setup scripts and data
+│   ├── bootstrap.php    # Initial setup script
+│   ├── setup.php        # WP-CLI basecamp command
+│   └── data/            # Setup resources
+│       └── images/      # Logo and icon files
+├── wp/                  # WordPress core files (composer managed)
+├── wp-content/          # WordPress content directory
+│   ├── themes/          # WordPress themes
+│   ├── plugins/         # WordPress plugins
+│   ├── mu-plugins/      # Must-use plugins
+│   └── uploads/         # Media uploads
+├── wp-config/           # WordPress configuration
+│   ├── application.php  # Main config file
+│   └── environments/    # Environment-specific configs
+├── .env                 # Environment variables (generated)
+├── .env.example         # Environment template
+├── .lando.yml           # Lando configuration (generated)
+├── .lando.example.yml   # Lando template
+├── composer.json        # PHP dependencies
+├── package.json         # Node dependencies
+└── wp-cli.yml           # WP-CLI configuration
 ```
 
 ## Commands
 
-- `php setup/bootstrap.php` - Boostrap and run setup
-- `lando start` - Start environment
-- `lando stop` - Stop environment
-- `lando wp` - WP-CLI commands
-- `lando composer` - Composer commands
-- `lando npm` - NPM commands
+### Setup Commands
+- `php setup/bootstrap.php` - Initial project setup (run once)
+- `lando wp basecamp` - WordPress setup command (called by bootstrap.php)
 
+### Development Commands
+- `lando start` - Start the development environment
+- `lando stop` - Stop environment (creates database backup)
+- `lando rebuild` - Rebuild containers
+- `lando wp` - Run WP-CLI commands
+- `lando composer` - Run Composer commands
+- `lando npm` - Run NPM commands in Node container
+- `lando node` - Access Node directly
+- `lando db` - Access MySQL CLI
+
+### Useful WP-CLI Commands
+```bash
+# Create a new user
+lando wp user create username email@example.com --role=administrator
+
+# Update plugins
+lando wp plugin update --all
+
+# Export database
+lando wp db export backup.sql
+
+# Search and replace URLs
+lando wp search-replace 'old-url.com' 'new-url.com'
+```
+
+## Configuration
 
 ### Environment Variables
 
-Required in `.env`:
-```
+The `.env` file is automatically generated during setup with secure salts. Key variables:
+
+```bash
+# Environment type
 WP_ENV=development
-WP_HOME=https://wp-lando.lndo.site
+
+# URLs (automatically set based on project name)
+WP_HOME=https://[project-name].lndo.site
+WP_SITEURL=https://[project-name].lndo.site/wp
+
+# Database credentials (Lando defaults)
 DB_NAME=wordpress
 DB_USER=wordpress
 DB_PASSWORD=wordpress
+DB_HOST=database
+
+# Salts (automatically generated)
+AUTH_KEY='...'
+SECURE_AUTH_KEY='...'
+# ... etc
 ```
 
-### WordPress Config
+### WordPress Configuration
 
-Environment configs live in `wp-config/`. Simliar to [roots/bedrock](https://github.com/roots/bedrock), `application.php` contains the main config with the ability for `staging.php` and `development.php` to override environment specific settings.
+Environment configs live in `wp-config/`. Similar to [roots/bedrock](https://github.com/roots/bedrock), but uses the [builtnorth/wp-config](https://github.com/builtnorth/wp-config.git) composer package:
+- `application.php` - Main configuration file
+- `environments/development.php` - Development-specific settings
+- `environments/staging.php` - Staging-specific settings
+- `environments/production.php` - Production-specific settings
+
+## Troubleshooting
+
+**Database connection issues during setup**
+- The setup script waits up to 2 minutes for the database to be ready
+- If issues persist, try `lando rebuild` and run setup again
+
+**NPM not available**
+- The node service may not have started properly
+- Run `lando rebuild` to ensure all services are running
+- Manually run `lando npm install` and `lando npm run build` if needed
+
+**Lando commands not working**
+- Ensure you're in the project directory
+- Check that Lando is running: `lando list`
+- Verify Docker/OrbStack is running
+
+## License
+GNU General Public License v2.0 or later
 
 
 ## Disclaimer
