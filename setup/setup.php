@@ -125,22 +125,97 @@ class Basecamp_Command {
         // Step 2: Configure WordPress
         WP_CLI::line('Configuring WordPress...');
         
-        // Try to install a default theme (required for roots/wordpress-no-content)
-        WP_CLI::line('Installing default theme...');
-        $themes_to_try = ['twentytwentyfive', 'twentytwentyfour', 'twentytwentythree'];
-        $theme_installed = false;
+        // Handle theme installation
+        WP_CLI::line('Checking for themes...');
         
-        foreach ($themes_to_try as $theme) {
-            exec("wp theme install $theme --activate 2>&1", $theme_output, $theme_return);
-            if ($theme_return === 0) {
-                WP_CLI::success("Theme $theme installed and activated");
-                $theme_installed = true;
-                break;
+        // 1. Check if composer has theme packages
+        $composer_file = dirname(__DIR__) . '/composer.json';
+        $has_composer_themes = false;
+        
+        if (file_exists($composer_file)) {
+            $composer_json = json_decode(file_get_contents($composer_file), true);
+            
+            // Check both require and require-dev for theme packages
+            foreach (['require', 'require-dev'] as $section) {
+                foreach ($composer_json[$section] ?? [] as $package => $version) {
+                    // Common theme package patterns
+                    if (strpos($package, '/theme') !== false || 
+                        strpos($package, 'wp-content/themes/') !== false ||
+                        preg_match('/themes?\//', $package)) {
+                        $has_composer_themes = true;
+                        WP_CLI::line("Found theme package in composer.json: {$package}");
+                        break 2;
+                    }
+                }
             }
         }
         
-        if (!$theme_installed) {
-            WP_CLI::warning('Could not install any default theme. You may need to install one manually.');
+        // 2. Check for themes in setup/data/themes
+        $themes_source_dir = dirname(__DIR__) . '/setup/data/themes';
+        $themes_to_copy = [];
+        
+        if (is_dir($themes_source_dir)) {
+            $themes_to_copy = glob($themes_source_dir . '/*', GLOB_ONLYDIR);
+            if (!empty($themes_to_copy)) {
+                WP_CLI::line('Found ' . count($themes_to_copy) . ' theme(s) in setup/data/themes/');
+            }
+        }
+        
+        // 3. Copy themes from setup/data if found
+        $themes_dest_dir = dirname(__DIR__) . '/wp-content/themes';
+        foreach ($themes_to_copy as $theme_path) {
+            $theme_name = basename($theme_path);
+            $dest_path = $themes_dest_dir . '/' . $theme_name;
+            
+            WP_CLI::line("Copying theme: {$theme_name}");
+            
+            // Use recursive copy
+            exec("cp -r {$theme_path} {$dest_path} 2>&1", $copy_output, $copy_return);
+            
+            if ($copy_return === 0) {
+                WP_CLI::success("Copied theme: {$theme_name}");
+            } else {
+                WP_CLI::warning("Failed to copy theme {$theme_name}: " . implode(' ', $copy_output));
+            }
+        }
+        
+        // 4. Check what themes are now available
+        $available_themes = glob($themes_dest_dir . '/*', GLOB_ONLYDIR);
+        $theme_count = count($available_themes);
+        
+        // 5. Only install default theme if no themes exist
+        if (!$has_composer_themes && empty($themes_to_copy) && $theme_count === 0) {
+            WP_CLI::line('No themes found, installing default theme...');
+            
+            $themes_to_try = ['twentytwentyfive', 'twentytwentyfour', 'twentytwentythree'];
+            $theme_installed = false;
+            
+            foreach ($themes_to_try as $theme) {
+                exec("wp theme install $theme --activate 2>&1", $theme_output, $theme_return);
+                if ($theme_return === 0) {
+                    WP_CLI::success("Theme $theme installed and activated");
+                    $theme_installed = true;
+                    break;
+                }
+            }
+            
+            if (!$theme_installed) {
+                WP_CLI::warning('Could not install any default theme. You may need to install one manually.');
+            }
+        } else {
+            WP_CLI::line("Found {$theme_count} theme(s) in wp-content/themes/");
+            
+            // Activate the first available theme
+            if ($theme_count > 0) {
+                $first_theme = basename($available_themes[0]);
+                exec("wp theme activate {$first_theme} 2>&1", $activate_output, $activate_return);
+                
+                if ($activate_return === 0) {
+                    WP_CLI::success("Activated theme: {$first_theme}");
+                } else {
+                    WP_CLI::warning("Failed to activate theme {$first_theme}: " . implode(' ', $activate_output));
+                }
+            }
         }
         
         // Activate plugins

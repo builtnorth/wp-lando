@@ -67,7 +67,8 @@ project-name/
 │   ├── setup.php        # WP-CLI basecamp command
 │   └── data/            # Setup resources (optional)
 │       ├── content/     # XML content files to import
-│       └── images/      # Images to import (logo/icon auto-detected)
+│       ├── images/      # Images to import (logo/icon auto-detected)
+│       └── themes/      # Custom theme folders to install
 ├── wp/                  # WordPress core files (composer managed)
 ├── wp-content/          # WordPress content directory
 │   ├── themes/          # WordPress themes
@@ -155,6 +156,14 @@ Environment configs live in `wp-config/`. Similar to [roots/bedrock](https://git
 
 The setup process is flexible and adapts to available content:
 
+### Theme Installation
+Themes are handled in priority order:
+1. **Composer packages** - If theme packages are found in composer.json
+2. **Custom themes** - Place theme folders in `setup/data/themes/`
+3. **Default theme** - Only installs twentytwenty* if no themes exist
+
+To include a custom theme, simply place the entire theme folder in `setup/data/themes/` before running setup.
+
 ### Content Import
 - Place WordPress export files (`.xml`) in `setup/data/content/`
 - All XML files in this directory will be imported
@@ -167,9 +176,15 @@ The setup process is flexible and adapts to available content:
 - Files with "icon" in the name → set as site icon
 - All other images are imported to the media library
 
+### Plugin Management
+- Plugins are managed via composer.json only
+- All plugins found in wp-content/plugins/ will be activated
+- No default plugins are installed
+
 ### No Content Provided?
-If no content or media files are provided:
+If no content, themes, or media files are provided:
 - WordPress default content remains (Hello World, Sample Page)
+- A default twentytwenty* theme is installed
 - No media is imported
 - Basic WordPress installation is completed
 
