@@ -177,40 +177,118 @@ class Basecamp_Command {
             WP_CLI::warning('Failed to flush rewrites: ' . implode(' ', $flush_output));
         }
         
+        // Check for content files to import
+        $content_dir = dirname(__DIR__) . '/setup/data/content';
+        $content_files = [];
+        
+        if (is_dir($content_dir)) {
+            $content_files = glob($content_dir . '/*.xml');
+        }
+        
+        // Import content if XML files exist
+        if (!empty($content_files)) {
+            WP_CLI::line('Found ' . count($content_files) . ' content file(s) to import...');
+            
+            // Ensure importer is installed
+            exec('wp plugin is-installed wordpress-importer 2>&1', $importer_check, $importer_return);
+            if ($importer_return !== 0) {
+                exec('wp plugin install wordpress-importer --activate 2>&1', $install_output, $install_return);
+                if ($install_return !== 0) {
+                    WP_CLI::warning('Failed to install importer: ' . implode(' ', $install_output));
+                    WP_CLI::warning('Skipping content import');
+                }
+            } else {
+                exec('wp plugin activate wordpress-importer 2>&1', $activate_output, $activate_return);
+                if ($activate_return !== 0) {
+                    WP_CLI::warning('Failed to activate importer: ' . implode(' ', $activate_output));
+                    WP_CLI::warning('Skipping content import');
+                }
+            }
+            
+            // Import each XML file
+            foreach ($content_files as $file) {
+                WP_CLI::line('Importing: ' . basename($file));
+                exec("wp import {$file} --authors=create 2>&1", $import_output, $import_return);
+                if ($import_return !== 0) {
+                    WP_CLI::warning('Failed to import ' . basename($file) . ': ' . implode(' ', $import_output));
+                } else {
+                    WP_CLI::success('Imported ' . basename($file));
+                }
+            }
+            
+            // Only remove default content if we successfully imported content
+            WP_CLI::line('Cleaning default content...');
+            
+            // Delete default posts
+            exec('wp post delete 1 --force 2>&1', $del1_output, $del1_return); // Hello World post
+            
+            // Delete default page only if we have pages in imported content
+            $imported_pages = false;
+            foreach ($content_files as $file) {
+                $content = file_get_contents($file);
+                if (strpos($content, '<wp:post_type>page</wp:post_type>') !== false) {
+                    $imported_pages = true;
+                    break;
+                }
+            }
+            
+            if ($imported_pages) {
+                exec('wp post delete 2 --force 2>&1', $del2_output, $del2_return); // Sample Page
+            } else {
+                WP_CLI::line('Keeping default Sample Page as no pages were imported');
+            }
+            
+            // Delete default comment
+            exec('wp comment delete 1 --force 2>&1', $comment_output, $comment_return);
+        } else {
+            WP_CLI::line('No content files found in setup/data/content/, keeping default content');
+        }
+        
         
         // Import media
-        $media_files = [
-            dirname(__DIR__) . '/setup/data/images/logo.png',
-            dirname(__DIR__) . '/setup/data/images/icon.png',
-            dirname(__DIR__) . '/setup/data/images/placeholder-image-canyon.jpg'
-        ];
-        
+        $images_dir = dirname(__DIR__) . '/setup/data/images';
         $logo_id = null;
         $icon_id = null;
         
-        foreach ($media_files as $file) {
-            if (file_exists($file)) {
-                // Clear output array before each import
-                $media_output = [];
-                exec("wp media import $file --porcelain 2>&1", $media_output, $media_return);
-                if ($media_return !== 0) {
-                    WP_CLI::warning('Failed to import media ' . basename($file) . ': ' . implode(' ', $media_output));
-                } else {
-                    $attachment_id = trim($media_output[0]);
-                    $filename = basename($file);
-                    
-                    // Track logo and icon IDs
-                    if ($filename === 'logo.png') {
-                        $logo_id = $attachment_id;
-                        WP_CLI::success("Imported logo.png (ID: {$logo_id})");
-                    } elseif ($filename === 'icon.png') {
-                        $icon_id = $attachment_id;
-                        WP_CLI::success("Imported icon.png (ID: {$icon_id})");
+        if (is_dir($images_dir)) {
+            // Get all image files
+            $image_extensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+            $media_files = [];
+            
+            foreach ($image_extensions as $ext) {
+                $media_files = array_merge($media_files, glob($images_dir . '/*.' . $ext));
+            }
+            
+            if (!empty($media_files)) {
+                WP_CLI::line('Importing ' . count($media_files) . ' media file(s)...');
+                
+                foreach ($media_files as $file) {
+                    // Clear output array before each import
+                    $media_output = [];
+                    exec("wp media import $file --porcelain 2>&1", $media_output, $media_return);
+                    if ($media_return !== 0) {
+                        WP_CLI::warning('Failed to import media ' . basename($file) . ': ' . implode(' ', $media_output));
                     } else {
-                        WP_CLI::success("Imported {$filename} (ID: {$attachment_id})");
+                        $attachment_id = trim($media_output[0]);
+                        $filename = basename($file);
+                        
+                        // Track logo and icon IDs by filename
+                        if (strpos(strtolower($filename), 'logo') !== false && $logo_id === null) {
+                            $logo_id = $attachment_id;
+                            WP_CLI::success("Imported {$filename} as site logo (ID: {$logo_id})");
+                        } elseif (strpos(strtolower($filename), 'icon') !== false && $icon_id === null) {
+                            $icon_id = $attachment_id;
+                            WP_CLI::success("Imported {$filename} as site icon (ID: {$icon_id})");
+                        } else {
+                            WP_CLI::success("Imported {$filename} (ID: {$attachment_id})");
+                        }
                     }
                 }
+            } else {
+                WP_CLI::line('No media files found in setup/data/images/');
             }
+        } else {
+            WP_CLI::line('No images directory found at setup/data/images/');
         }
         
         // Set site logo and icon
@@ -243,27 +321,54 @@ class Basecamp_Command {
         }
         
         
-        // Setup home and blog pages
-        WP_CLI::line('Setting up pages...');
-        exec('wp post list --post_type=page --name=home --format=ids 2>&1', $home_ids, $home_return);
-        exec('wp post list --post_type=page --name=blog --format=ids 2>&1', $blog_ids, $blog_return);
+        // Setup home and blog pages if they exist
+        WP_CLI::line('Checking for home and blog pages...');
+        exec('wp post list --post_type=page --format=json 2>&1', $pages_output, $pages_return);
         
-        $home_id = !empty($home_ids[0]) ? trim($home_ids[0]) : null;
-        $blog_id = !empty($blog_ids[0]) ? trim($blog_ids[0]) : null;
-        
-        if ($home_id && $blog_id) {
-            exec("wp option update page_for_posts {$blog_id} 2>&1", $posts_output, $posts_return);
-            exec("wp option update page_on_front {$home_id} 2>&1", $front_output, $front_return);
-            exec("wp option update show_on_front page 2>&1", $show_output, $show_return);
-            exec("wp post update {$home_id} --menu_order=-99 2>&1", $order_output, $order_return);
+        if ($pages_return === 0) {
+            $pages = json_decode(implode('', $pages_output), true);
+            $home_id = null;
+            $blog_id = null;
             
-            if ($posts_return === 0 && $front_return === 0 && $show_return === 0) {
-                WP_CLI::success("Set home page (ID: {$home_id}) and blog page (ID: {$blog_id})");
-            } else {
-                WP_CLI::warning('Some page settings may not have been applied correctly');
+            // Look for pages with specific slugs or titles
+            foreach ($pages as $page) {
+                $slug = strtolower($page['post_name']);
+                $title = strtolower($page['post_title']);
+                
+                // Check for home page
+                if (!$home_id && ($slug === 'home' || $slug === 'homepage' || $title === 'home' || $title === 'homepage')) {
+                    $home_id = $page['ID'];
+                }
+                
+                // Check for blog page
+                if (!$blog_id && ($slug === 'blog' || $slug === 'news' || $title === 'blog' || $title === 'news')) {
+                    $blog_id = $page['ID'];
+                }
             }
-        } else {
-            WP_CLI::warning('Could not find home and/or blog pages to set');
+            
+            // Set up pages if found
+            if ($home_id || $blog_id) {
+                WP_CLI::line('Configuring page settings...');
+                
+                if ($home_id && $blog_id) {
+                    exec("wp option update page_for_posts {$blog_id} 2>&1", $posts_output, $posts_return);
+                    exec("wp option update page_on_front {$home_id} 2>&1", $front_output, $front_return);
+                    exec("wp option update show_on_front page 2>&1", $show_output, $show_return);
+                    
+                    if ($posts_return === 0 && $front_return === 0 && $show_return === 0) {
+                        WP_CLI::success("Set home page (ID: {$home_id}) and blog page (ID: {$blog_id})");
+                    }
+                } elseif ($home_id) {
+                    exec("wp option update page_on_front {$home_id} 2>&1", $front_output, $front_return);
+                    exec("wp option update show_on_front page 2>&1", $show_output, $show_return);
+                    
+                    if ($front_return === 0 && $show_return === 0) {
+                        WP_CLI::success("Set home page (ID: {$home_id})");
+                    }
+                }
+            } else {
+                WP_CLI::line('No home or blog pages found, using default WordPress settings');
+            }
         }
         
         // Success!
