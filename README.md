@@ -38,14 +38,15 @@ Quick development environment setup for WordPress using Lando with sensible defa
    ```
 
 The setup process will:
-- Check for required dependencies
+- Check for required dependencies (Lando)
 - Prompt for project details (if not provided via CLI)
 - Generate `.env` and `.lando.yml` files with secure salts
 - Start the Lando environment
 - Install all dependencies (Composer & npm)
 - Install and configure WordPress
-- Import media files and set site logo/icon
-- Configure default pages and settings
+- Import any XML content files from `setup/data/content/`
+- Import all images from `setup/data/images/` (auto-detects logo/icon)
+- Configure pages and settings based on imported content
 
 ### What's Included
 
@@ -64,8 +65,9 @@ project-name/
 ├── setup/               # Setup scripts and data
 │   ├── bootstrap.php    # Initial setup script
 │   ├── setup.php        # WP-CLI basecamp command
-│   └── data/            # Setup resources
-│       └── images/      # Logo and icon files
+│   └── data/            # Setup resources (optional)
+│       ├── content/     # XML content files to import
+│       └── images/      # Images to import (logo/icon auto-detected)
 ├── wp/                  # WordPress core files (composer managed)
 ├── wp-content/          # WordPress content directory
 │   ├── themes/          # WordPress themes
@@ -148,6 +150,28 @@ Environment configs live in `wp-config/`. Similar to [roots/bedrock](https://git
 - `environments/development.php` - Development-specific settings
 - `environments/staging.php` - Staging-specific settings
 - `environments/production.php` - Production-specific settings
+
+## Customizing Setup Content
+
+The setup process is flexible and adapts to available content:
+
+### Content Import
+- Place WordPress export files (`.xml`) in `setup/data/content/`
+- All XML files in this directory will be imported
+- Default WordPress content is only removed if you provide replacement content
+
+### Media Import  
+- Place images in `setup/data/images/`
+- Supports: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`
+- Files with "logo" in the name → set as site logo
+- Files with "icon" in the name → set as site icon
+- All other images are imported to the media library
+
+### No Content Provided?
+If no content or media files are provided:
+- WordPress default content remains (Hello World, Sample Page)
+- No media is imported
+- Basic WordPress installation is completed
 
 ## Troubleshooting
 
