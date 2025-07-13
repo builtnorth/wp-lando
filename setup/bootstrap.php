@@ -40,6 +40,9 @@ start_lando();
 // Create necessary directories
 create_required_directories();
 
+// Create index.php router file
+create_index_file();
+
 // Run composer install
 run_composer_install();
 
@@ -222,23 +225,14 @@ function start_lando() {
         }
     }
     
-    // Start Lando
-    $output = [];
-    exec('lando start 2>&1', $output, $return_code);
+    // Start Lando - show all output
+    passthru('lando start', $return_code);
     
     if ($return_code !== 0) {
-        echo "Lando output:\n" . implode("\n", $output) . "\n";
         error_exit("Failed to start Lando. Please check the error messages above.");
     }
     
-    // Display relevant information
-    foreach ($output as $line) {
-        if (preg_match('/(NAME|LOCATION|SERVICES|Your app is|vitals|https?:\/\/)/', $line)) {
-            echo $line . "\n";
-        }
-    }
-    
-    echo "✓ Lando started successfully\n";
+    echo "\n✓ Lando started successfully\n";
 }
 
 /**
@@ -263,6 +257,39 @@ function create_required_directories() {
             }
             echo "✓ Created $dir\n";
         }
+    }
+}
+
+/**
+ * Create index.php router file
+ */
+function create_index_file() {
+    $index_file = dirname(__DIR__) . '/index.php';
+    
+    if (!file_exists($index_file)) {
+        $content = '<?php
+/**
+ * Front to the WordPress application. This file doesn\'t do anything, but loads
+ * wp-blog-header.php which does and tells WordPress to load the theme.
+ *
+ * @package WordPress
+ */
+
+/**
+ * Tells WordPress to load the WordPress theme and output it.
+ *
+ * @var bool
+ */
+define(\'WP_USE_THEMES\', true);
+
+/** Loads the WordPress Environment and Template */
+require dirname(__FILE__) . \'/wp/wp-blog-header.php\';';
+        
+        if (!file_put_contents($index_file, $content)) {
+            error_exit("Failed to create index.php");
+        }
+        
+        echo "✓ Created index.php router\n";
     }
 }
 
