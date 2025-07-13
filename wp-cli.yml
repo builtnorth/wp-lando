@@ -1,0 +1,6 @@
+# Global parameter defaults
+path: wp
+
+# Setup command for initial setup
+require:
+  - setup/setup.php
