@@ -21,3 +21,7 @@ ini_set('display_errors', '1');
 
 // Enable plugin and theme updates and installation from the admin
 Config::define('DISALLOW_FILE_MODS', false);
+
+// Fix SSL issues for development
+// Config::define('FORCE_SSL_ADMIN', false);
+// Config::define('FORCE_SSL_LOGIN', false);

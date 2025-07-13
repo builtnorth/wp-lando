@@ -2,6 +2,7 @@
 	"name": "builtnorth/wp-lando",
 	"description": "Starting point for WordPress projects using Lando",
 	"type": "project",
+	"version": "2.0.0",
 	"authors": [
 		{
 			"name": "Built North",
@@ -36,9 +37,7 @@
 		"vlucas/phpdotenv": "^5.6",
 		"oscarotero/env": "^2.1",
 		"roots/wordpress": "*",
-		"roots/wp-password-bcrypt": "^1.1",
-		"wpackagist-plugin/wordpress-importer": "dev-trunk",
-		"builtnorth/wp-config": "dev-main"
+		"builtnorth/wp-config": "*"
 	},
 	"config": {
 		"optimize-autoloader": true,

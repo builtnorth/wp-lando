@@ -1,0 +1,13 @@
+{
+  "name": "wp-lando",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WordPress development environment",
+  "workspaces": [],  
+  "scripts": {
+    "build": "echo 'No build tasks defined yet'",
+    "dev": "echo 'No dev tasks defined yet'",
+    "watch": "echo 'No watch tasks defined yet'"
+  },
+  "devDependencies": {}
+}

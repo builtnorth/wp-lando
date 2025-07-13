@@ -4,11 +4,18 @@
 .env.lando
 .lando.yml
 
+#ai tools
+.claude
+.claude/
+
 # Dependencies
 /vendor
 node_modules
 bower_components
 composer.lock
+
+# Data from import/export scripts
+/data
 
 # WordPress Directories
 /wordpress
