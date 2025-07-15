@@ -2,7 +2,7 @@
 	"name": "builtnorth/wp-lando",
 	"description": "Starting point for WordPress projects using Lando",
 	"type": "project",
-	"version": "2.0.0",
+	"version": "2.1.0",
 	"authors": [
 		{
 			"name": "Built North",

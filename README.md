@@ -118,6 +118,85 @@ lando wp db export backup.sql
 lando wp search-replace 'old-url.com' 'new-url.com'
 ```
 
+## Development Workflow
+
+### Dev Runner
+
+The project includes a dev-runner script (`bin/dev-runner.js`) that automatically manages build processes for all workspaces defined in your `package.json`. This script provides a clean, organized way to watch and compile assets across multiple themes, plugins, or packages simultaneously.
+
+**How it works:**
+- Automatically detects all workspaces from your `package.json`
+- Runs watch/build commands in parallel for each workspace
+- Provides clear visual feedback with emojis and colored output
+- Filters output to show only errors, warnings, and compilation status
+- Gracefully handles shutdown with Ctrl+C
+
+**Usage:**
+```bash
+# Start watching all workspaces for changes
+lando npm run dev
+
+# Build all workspaces once
+lando npm run build
+```
+
+The dev-runner will:
+1. Display all workspaces it's monitoring (themes, plugins, packages)
+2. Show initial compilation status for each workspace
+3. Watch for file changes and recompile automatically
+4. Display clear success/error messages with timestamps
+
+### NPM Workspaces
+
+This project uses NPM workspaces to manage multiple packages (themes, plugins, component libraries) within a single repository. Workspaces allow you to develop and maintain multiple related packages with shared dependencies and tooling.
+
+**How workspaces are configured:**
+- Defined in the root `package.json` under the `workspaces` field
+- Each workspace must have its own `package.json` file
+- Common example: `"workspaces": ["wp-content/themes/*", "wp-content/plugins/*"]`
+
+**Benefits:**
+- **Shared dependencies**: Common packages are hoisted to the root `node_modules`
+- **Cross-workspace development**: Changes in one workspace immediately affect others
+- **Single install**: Run `npm install` once at the root to install all dependencies
+- **Unified scripts**: Run commands across all workspaces from the root
+
+**Common workspace commands:**
+```bash
+# Install dependencies for all workspaces
+lando npm install
+
+# Run a script in a specific workspace
+lando npm run build --workspace=wp-content/themes/my-theme
+
+# Run a script in all workspaces
+lando npm run build --workspaces
+
+# Add a dependency to a specific workspace
+lando npm install package-name --workspace=wp-content/themes/my-theme
+
+# List all workspaces
+lando npm ls --workspaces
+```
+
+**Workspace structure example:**
+```
+project-root/
+├── package.json          # Root package.json with workspaces config
+├── node_modules/         # Shared dependencies
+├── wp-content/
+│   ├── themes/
+│   │   └── my-theme/
+│   │       ├── package.json    # Theme-specific dependencies
+│   │       └── src/
+│   └── plugins/
+│       └── my-plugin/
+│           ├── package.json    # Plugin-specific dependencies
+│           └── src/
+```
+
+The dev-runner automatically detects and manages all configured workspaces, making it easy to develop multiple packages simultaneously.
+
 ## Configuration
 
 ### Environment Variables

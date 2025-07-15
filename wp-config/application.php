@@ -146,6 +146,11 @@ if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROT
 }
 
 /**
+ * API Keys from .env
+ */
+Config::define('SAMPLE_API', env('SAMPLE_API'));
+
+/**
  * Load Environment Config
  */
 $env_config = __DIR__ . '/environments/' . Config::get('WP_ENV') . '.php';
@@ -166,9 +171,3 @@ if (!defined('ABSPATH') && !defined('WP_CLI')) {
 	define('ABSPATH', $webroot_dir . '/wp/');
 }
 
-
-/**
- * Auth K
- */
-Config::define('SAMPLE_API', env('SAMPLE_API'));
-Config::define('JWT_AUTH_SECRET_KEY', env('JWT_AUTH_SECRET_KEY'));	

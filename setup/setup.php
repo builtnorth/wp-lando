@@ -63,7 +63,19 @@ class Basecamp_Command {
         // Check if WordPress is already installed
         exec('wp core is-installed 2>&1', $output, $return_code);
         if ($return_code === 0) {
-            WP_CLI::warning('WordPress appears to be already installed. Resetting database...');
+            WP_CLI::warning('WordPress appears to be already installed.');
+            WP_CLI::line('');
+            WP_CLI::line('⚠️  This will RESET the database and delete all existing data!');
+            WP_CLI::line('');
+            
+            $response = $this->prompt_user('Do you want to continue? [y/N]', 'n');
+            
+            if (strtolower($response) !== 'y') {
+                WP_CLI::line('Setup cancelled.');
+                exit(0);
+            }
+            
+            WP_CLI::line('Resetting database...');
             exec('wp db reset --yes 2>&1', $reset_output, $reset_return);
             if ($reset_return !== 0) {
                 WP_CLI::error('Failed to reset database: ' . implode(' ', $reset_output));
@@ -464,6 +476,19 @@ class Basecamp_Command {
             WP_CLI::warning('WordPress may not be properly installed. Please check your site.');
             WP_CLI::line("Try visiting: {$url}");
         }
+    }
+    
+    /**
+     * Prompt user for input
+     */
+    private function prompt_user($question, $default = '') {
+        WP_CLI::out($question . ' ');
+        
+        $handle = fopen('php://stdin', 'r');
+        $response = trim(fgets($handle));
+        fclose($handle);
+        
+        return empty($response) ? $default : $response;
     }
     
     /**
