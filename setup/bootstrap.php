@@ -223,10 +223,17 @@ function start_lando() {
     // Get project name from .lando.yml file
     $project_name = get_lando_project_name();
     
-    foreach ($output as $line) {
-        if (strpos($line, $project_name) !== false && strpos($line, 'RUNNING') !== false) {
-            echo "✓ Lando is already running for this project\n";
-            return;
+    // Parse JSON output from lando list
+    $json_output = implode('', $output);
+    $services = json_decode($json_output, true);
+    
+    if ($services && is_array($services)) {
+        foreach ($services as $service) {
+            if (isset($service['app']) && $service['app'] === $project_name && 
+                isset($service['running']) && $service['running'] === true) {
+                echo "✓ Lando is already running for this project\n";
+                return;
+            }
         }
     }
     
@@ -237,16 +244,16 @@ function start_lando() {
     $cmd = 'timeout 300 lando start --no-scanner 2>&1';
     exec($cmd, $start_output, $return_code);
     
-    // If timeout command doesn't exist (Windows), use alternative approach
+    // If timeout command doesn't exist (macOS/Windows), use alternative approach
     if ($return_code === 127) {
         echo "Timeout command not available, using alternative method...\n";
         
-        // Start Lando in background
-        $pid = popen('lando start --no-scanner > /dev/null 2>&1 &', 'r');
-        pclose($pid);
+        // Start Lando in background using proper shell execution
+        $cmd = 'lando start --no-scanner > /dev/null 2>&1 &';
+        exec($cmd);
         
         // Wait and check if it's running
-        $max_wait = 60; // 2 minutes
+        $max_wait = 120; // 2 minutes
         $waited = 0;
         
         while ($waited < $max_wait) {
@@ -254,15 +261,55 @@ function start_lando() {
             $waited += 2;
             
             exec('lando list 2>&1', $check_output, $check_return);
-            foreach ($check_output as $line) {
-                if (strpos($line, $project_name) !== false && strpos($line, 'RUNNING') !== false) {
-                    echo "\n✓ Lando started successfully\n";
-                    return;
+            $is_running = false;
+            
+            // Parse JSON output from lando list
+            $json_output = implode('', $check_output);
+            $services = json_decode($json_output, true);
+            
+            if ($services && is_array($services)) {
+                foreach ($services as $service) {
+                    if (isset($service['app']) && $service['app'] === $project_name && 
+                        isset($service['running']) && $service['running'] === true) {
+                        $is_running = true;
+                        break;
+                    }
                 }
+            }
+            
+            if ($is_running) {
+                echo "\n✓ Lando started successfully\n";
+                return;
             }
             
             if ($waited % 10 === 0) {
                 echo "Still starting... ({$waited}s elapsed)\n";
+                // Show current Lando status for debugging
+                if ($waited % 30 === 0) {
+                    echo "Current Lando status:\n";
+                    if ($services && is_array($services)) {
+                        foreach ($services as $service) {
+                            if (isset($service['app']) && $service['app'] === $project_name) {
+                                $status = isset($service['running']) && $service['running'] ? 'RUNNING' : 'STOPPED';
+                                echo "  {$service['service']}: {$status}\n";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        echo "\nLando status after timeout:\n";
+        exec('lando list 2>&1', $final_output);
+        $final_json = implode('', $final_output);
+        $final_services = json_decode($final_json, true);
+        
+        if ($final_services && is_array($final_services)) {
+            foreach ($final_services as $service) {
+                if (isset($service['app']) && $service['app'] === $project_name) {
+                    $status = isset($service['running']) && $service['running'] ? 'RUNNING' : 'STOPPED';
+                    echo "  {$service['service']}: {$status}\n";
+                }
             }
         }
         
