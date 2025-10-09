@@ -12,6 +12,9 @@ if (php_sapi_name() !== 'cli') {
 // Check prerequisites
 check_prerequisites();
 
+// Clean up any existing setup processes
+cleanup_existing_processes();
+
 // Display welcome message
 display_ascii_art();
 
@@ -209,14 +212,16 @@ function create_lando_config($sitename) {
 }
 
 /**
- * Start Lando with proper error handling
+ * Start Lando with proper error handling and timeout
  */
 function start_lando() {
     echo "\nStarting Lando...\n";
     
     // Check if Lando is already running
     exec('lando list 2>&1', $output, $return_code);
-    $project_name = basename(dirname(__DIR__));
+    
+    // Get project name from .lando.yml file
+    $project_name = get_lando_project_name();
     
     foreach ($output as $line) {
         if (strpos($line, $project_name) !== false && strpos($line, 'RUNNING') !== false) {
@@ -225,10 +230,47 @@ function start_lando() {
         }
     }
     
-    // Start Lando - show all output but skip URL scanning
-    passthru('lando start --no-scanner', $return_code);
+    // Start Lando with timeout using exec instead of passthru
+    echo "Starting Lando services (this may take a few minutes)...\n";
+    
+    // Use exec with timeout to prevent hanging
+    $cmd = 'timeout 300 lando start --no-scanner 2>&1';
+    exec($cmd, $start_output, $return_code);
+    
+    // If timeout command doesn't exist (Windows), use alternative approach
+    if ($return_code === 127) {
+        echo "Timeout command not available, using alternative method...\n";
+        
+        // Start Lando in background
+        $pid = popen('lando start --no-scanner > /dev/null 2>&1 &', 'r');
+        pclose($pid);
+        
+        // Wait and check if it's running
+        $max_wait = 60; // 2 minutes
+        $waited = 0;
+        
+        while ($waited < $max_wait) {
+            sleep(2);
+            $waited += 2;
+            
+            exec('lando list 2>&1', $check_output, $check_return);
+            foreach ($check_output as $line) {
+                if (strpos($line, $project_name) !== false && strpos($line, 'RUNNING') !== false) {
+                    echo "\n✓ Lando started successfully\n";
+                    return;
+                }
+            }
+            
+            if ($waited % 10 === 0) {
+                echo "Still starting... ({$waited}s elapsed)\n";
+            }
+        }
+        
+        error_exit("Lando failed to start within 2 minutes. Please check 'lando list' manually.");
+    }
     
     if ($return_code !== 0) {
+        echo "Lando output:\n" . implode("\n", $start_output) . "\n";
         error_exit("Failed to start Lando. Please check the error messages above.");
     }
     
@@ -397,6 +439,48 @@ function sanitize_project_name($name) {
     }
     
     return $sanitized;
+}
+
+/**
+ * Clean up any existing setup processes to prevent conflicts
+ */
+function cleanup_existing_processes() {
+    // Check for existing PHP processes running this script
+    exec('ps aux | grep "php.*bootstrap.php" | grep -v grep', $processes);
+    
+    if (count($processes) > 1) {
+        echo "⚠️  Found existing setup processes. Cleaning up...\n";
+        
+        foreach ($processes as $process) {
+            $parts = preg_split('/\s+/', $process);
+            if (isset($parts[1]) && $parts[1] !== getmypid()) {
+                echo "Killing process {$parts[1]}\n";
+                exec("kill -9 {$parts[1]} 2>/dev/null");
+            }
+        }
+        
+        sleep(2); // Give processes time to die
+    }
+}
+
+/**
+ * Get Lando project name from .lando.yml file
+ */
+function get_lando_project_name() {
+    $lando_file = dirname(__DIR__) . '/.lando.yml';
+    
+    if (!file_exists($lando_file)) {
+        // Fallback to directory name if .lando.yml doesn't exist
+        return basename(dirname(__DIR__));
+    }
+    
+    $content = file_get_contents($lando_file);
+    if (preg_match('/^name:\s*(.+)$/m', $content, $matches)) {
+        return trim($matches[1]);
+    }
+    
+    // Fallback to directory name if name not found
+    return basename(dirname(__DIR__));
 }
 
 /**
