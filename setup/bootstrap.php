@@ -218,7 +218,7 @@ function start_lando() {
     echo "\nStarting Lando...\n";
     
     // Check if Lando is already running
-    exec('lando list 2>&1', $output, $return_code);
+    exec('lando list --format=json 2>&1', $output, $return_code);
     
     // Get project name from .lando.yml file
     $project_name = get_lando_project_name();
@@ -260,7 +260,7 @@ function start_lando() {
             sleep(2);
             $waited += 2;
             
-            exec('lando list 2>&1', $check_output, $check_return);
+            exec('lando list --format=json 2>&1', $check_output, $check_return);
             $is_running = false;
             
             // Parse JSON output from lando list
@@ -300,7 +300,7 @@ function start_lando() {
         }
         
         echo "\nLando status after timeout:\n";
-        exec('lando list 2>&1', $final_output);
+        exec('lando list --format=json 2>&1', $final_output);
         $final_json = implode('', $final_output);
         $final_services = json_decode($final_json, true);
         
@@ -523,7 +523,9 @@ function get_lando_project_name() {
     
     $content = file_get_contents($lando_file);
     if (preg_match('/^name:\s*(.+)$/m', $content, $matches)) {
-        return trim($matches[1]);
+        $project_name = trim($matches[1]);
+        // Lando converts hyphens to nothing in app names
+        return str_replace('-', '', $project_name);
     }
     
     // Fallback to directory name if name not found
