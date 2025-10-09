@@ -12,8 +12,8 @@ if (php_sapi_name() !== 'cli') {
 // Check prerequisites
 check_prerequisites();
 
-// Clean up any existing setup processes
-cleanup_existing_processes();
+// Clean up any existing setup processes (disabled for now)
+// cleanup_existing_processes();
 
 // Display welcome message
 display_ascii_art();
@@ -389,7 +389,10 @@ function run_composer_install() {
     echo "\nInstalling Composer dependencies...\n";
     
     $output = [];
-    exec('lando composer install 2>&1', $output, $return_code);
+    // Ensure we're in the project root directory
+    $project_root = dirname(__DIR__);
+    $cmd = "cd {$project_root} && lando composer install 2>&1";
+    exec($cmd, $output, $return_code);
     
     if ($return_code !== 0) {
         echo "Composer output:\n" . implode("\n", $output) . "\n";
@@ -422,7 +425,8 @@ function handle_npm_dependencies() {
     
     // Install dependencies
     echo "Installing NPM dependencies...\n";
-    exec('lando npm install 2>&1', $output, $return_code);
+    $project_root = dirname(__DIR__);
+    exec("cd {$project_root} && lando npm install 2>&1", $output, $return_code);
     
     if ($return_code !== 0) {
         echo "⚠️  NPM install failed. You may need to run it manually later.\n";
@@ -433,7 +437,7 @@ function handle_npm_dependencies() {
     $package_json = json_decode(file_get_contents(dirname(__DIR__) . '/package.json'), true);
     if (isset($package_json['scripts']['build'])) {
         echo "Building assets...\n";
-        exec('lando npm run build 2>&1', $output, $return_code);
+        exec("cd {$project_root} && lando npm run build 2>&1", $output, $return_code);
         
         if ($return_code === 0) {
             echo "✓ Assets built successfully\n";
@@ -449,8 +453,10 @@ function handle_npm_dependencies() {
 function run_wordpress_setup($name, $email, $password, $username) {
     echo "\nRunning WordPress setup...\n";
     
+    $project_root = dirname(__DIR__);
     $cmd = sprintf(
-        'lando wp basecamp --name="%s" --email="%s" --password="%s" --username="%s" 2>&1',
+        'cd %s && lando wp basecamp --name="%s" --email="%s" --password="%s" --username="%s" 2>&1',
+        $project_root,
         addslashes($name),
         addslashes($email),
         addslashes($password),
@@ -501,12 +507,16 @@ function cleanup_existing_processes() {
         foreach ($processes as $process) {
             $parts = preg_split('/\s+/', $process);
             if (isset($parts[1]) && $parts[1] !== getmypid()) {
-                echo "Killing process {$parts[1]}\n";
-                exec("kill -9 {$parts[1]} 2>/dev/null");
+                // Only kill processes that are actually running (not just found in ps)
+                exec("ps -p {$parts[1]} -o pid= 2>/dev/null", $check_output);
+                if (!empty($check_output)) {
+                    echo "Killing process {$parts[1]}\n";
+                    exec("kill -9 {$parts[1]} 2>/dev/null");
+                }
             }
         }
         
-        sleep(2); // Give processes time to die
+        sleep(1); // Give processes time to die
     }
 }
 
